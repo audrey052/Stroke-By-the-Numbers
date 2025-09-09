@@ -1,0 +1,131 @@
+---
+title: "DMZ AOL"
+author: "Group 4"
+date: "2024-06-11"
+output: html_document
+---
+
+load library
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(plotly)
+```
+
+Read csv file
+```{r}
+dataStroke <- read.csv("healthcare-dataset-stroke-data.csv", 
+                       header = TRUE, na.strings = c("N/A", "NA", " ", ""))
+dataStroke
+```
+
+Identify NULL Value
+```{r}
+colSums(is.na(dataStroke))
+```
+
+Replace the NULL Value
+```{r}
+# mengganti NULL value dalam BMI berdasarkan status stroke
+dataStroke$bmi <- ifelse(is.na(dataStroke$bmi), 
+                                    ifelse(dataStroke$stroke == 1, 
+                                           mean(dataStroke$bmi
+                                                [dataStroke$stroke == 1], 
+                                                na.rm = TRUE), 
+                                           mean(dataStroke$bmi
+                                                [dataStroke$stroke == 0], 
+                                                na.rm = TRUE)), 
+                                    dataStroke$bmi)
+# Hitung jumlah data yang NULL di kolom BMI
+BMINULL <- sum(is.na(dataStroke$bmi))
+cat("BMI NULL: ", BMINULL, "\n")
+```
+Filter data hanya untuk pasien yang mengalami stroke
+```{r}
+stroke_data <- dataStroke[dataStroke$stroke == 1, ]
+```
+
+## Visualization for stroke frequency by Gender
+dari analisa bar graph berikut, menyatakan bahwa dari dataset ini lebih banyak
+data perempuan yang terkena stroke yaitu sekitar 140 data dibandingkan laki laki yang terkena stroke (sekitar 100 data)
+```{r}
+# Hitung distribusi gender
+gender_counts <- stroke_data %>%
+  count(gender) %>%
+  rename(Frequency = n)
+
+# Buat plot dengan Plotly
+plot_ly(gender_counts, x = ~gender, y = ~Frequency, type = 'bar', 
+        color = ~gender,
+        colors = c("Female" = "salmon", "Male" ="lightblue")) %>%
+  layout(title = "Stroke by Gender",
+         xaxis = list(title = "Gender"),
+         yaxis = list(title = "Frequency"))
+```
+
+## Visualization smoke pattern by stroke status = 1
+dari pie chart berikut ini terlihat bahwa penderita stroke tidak selalu 
+dipengaruhi oleh kebiasaan merokok, hal ini terlihat dari analisa data sebanyak
+36,1% pasien stroke tidak pernah merokok, tapi tidak menutup kemungkinan juga
+bahwa rokok dapat memicu stroke.
+```{r}
+# Hitung jumlah setiap kategori pola merokok
+smoking_counts_Stroke <- stroke_data %>%
+  count(smoking_status) %>%
+  mutate(percentage = n / sum(n) * 100)
+
+# Buat pie chart untuk pola merokok di antara pasien yang mengalami stroke
+plot_ly(smoking_counts_Stroke, labels = ~smoking_status, values = ~n, type = "pie",
+                     marker = list(colors 
+                                   = rainbow(nrow(smoking_counts_Stroke)))) %>%
+  layout(title = "Smoking Patterns Among Stroke Patients",
+         showlegend = TRUE)
+```
+
+## Visualization of age distribution
+Dalam analisis ini, kita mencatat bahwa pasien yang terkena stroke tampaknya
+memiliki rentang usia antara 40 dan 80 tahun, dan terdapat peningkatan jumlah 
+pasien di sekitar usia 70 tahun ke atas.
+```{r}
+# Histogram distribusi usia pasien yang mengalami stroke
+plot_ly(stroke_data, x = ~age, type = "histogram", 
+        marker = list(color = "salmon", 
+                      line = list(color = "black", width = 1))) %>%
+  layout(title = "Distribution of Stroke Patients by Age",
+         xaxis = list(title = "Age"),
+         yaxis = list(title = "Frequency"))
+```
+
+## Visualization frekuensi hypertension dan juga heart disease berdasarkan stroke status
+Analisis data menunjukkan bahwa pasien dengan penyakit jantung lebih sering mengalami stroke dibandingkan pasien dengan hipertensi.
+```{r}
+# Hitung total orang dengan hipertensi dan penyakit jantung di seluruh dataset
+total_hypertension <- sum(dataStroke$hypertension == 1)
+total_heart_disease <- sum(dataStroke$heart_disease == 1)
+
+# Kelompokkan data berdasarkan status stroke dan hitung jumlah orang dengan hipertensi dan penyakit jantung
+plot_data <- dataStroke %>%
+  group_by(stroke) %>%
+  summarise(Hypertension = sum(hypertension),
+            Heart_Disease = sum(heart_disease),
+            Total = n()) %>%
+  pivot_longer(cols = c(Hypertension, Heart_Disease),
+               names_to = "Condition",
+               values_to = "Frequency") %>%
+  mutate(Total_Condition = ifelse(Condition == "Hypertension", 
+                                  total_hypertension, total_heart_disease),
+         Percentage = (Frequency / Total_Condition) * 100,
+         Status = ifelse(stroke == 1, "Stroke", "Non-Stroke"))
+
+# Buat plot interaktif dengan plotly
+plot_ly(plot_data, x = ~Condition, y = ~Percentage, 
+        color = ~Status, type = "bar", 
+        text = ~paste0(round(Percentage, 1), "%"), 
+        textposition = "outside",
+        colors = c("Non-Stroke" = "salmon", "Stroke" = "indianred4")) %>%
+  layout(title = "Percentage of Hypertension and Heart Disease",
+         xaxis = list(title = "Condition"),
+         yaxis = list(title = "Percentage"),
+         legend = list(title = list(text = "Stroke Status")))
+```
